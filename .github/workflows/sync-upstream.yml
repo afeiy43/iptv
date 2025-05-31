@@ -1,0 +1,45 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # 每天凌晨运行一次
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Add upstream repository
+        run: |
+          git remote add upstream https://github.com/skddyj/iptv
+          git fetch upstream
+
+      - name: Merge upstream changes
+        run: |
+          git checkout main
+          # 尝试合并
+          if git merge upstream/main --allow-unrelated-histories; then
+            # 合并成功，直接推送
+            git push origin main
+          else
+            # 检测到冲突，恢复所有冲突文件到 upstream/main 的版本
+            echo "Merge conflict detected, resetting conflicted files to upstream version"
+            git diff --name-only --diff-filter=U | xargs git checkout --theirs
+            git diff --name-only --diff-filter=U | xargs git add
+            # 提交合并
+            git commit --no-edit
+            # 推送更改
+            git push origin main
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
